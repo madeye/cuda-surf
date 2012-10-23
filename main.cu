@@ -304,12 +304,7 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
   //free(h_det);
   free(h_ipts);
   free(h_ort);
-#if PROCEDURE == 3
   return h_des;
-#else
-  free(h_des);
-  return NULL;
-#endif
 }
 
 
@@ -332,27 +327,32 @@ int mainCUDAImage(int args, char** argv)
 
   gettimeofday(&bd_tick_x, 0);
 
-  DetDes(gray_img, ipts, orts);
+  float4 *des = DetDes(gray_img, ipts, orts);
 
   gettimeofday(&bd_tick_e, 0);
   GET_TIME(bd_tick_x, bd_tick_e, bd_tick_d);
 
-  for (int i = 0; i < ipts.size(); i++)
+  for (int i = 0; i < ipts.size(); i++) {
     cout << ipts[i].z << " " << orts[i] << " "<< fRound(ipts[i].w) << " " <<
          fRound(ipts[i].y) << " " << fRound(ipts[i].x) << endl;
+    for (int j = 0; j < 16; j++) {
+        float4 d = des[i*16 + j];
+        cout << d.x << " " << d.y << " " << d.z << " " << d.w << endl;
+    }
+  }
   std::cout<< "OpenSURF took: " << bd_tick_d.tv_sec*1000 + bd_tick_d.tv_usec/1000 << " ms" << std::endl;
   cout << "Ipoint Num: " << ipts.size() << endl;
 
-  /*
-      Ipoint *ipt;
-      for(unsigned int i = 0; i < ipts.size(); i++)
-      {
-      ipt = &ipts.at(i);
-      std::cout << ipt->scale;
-      std::cout << " " << ipt->orientation << " " << ipt->laplacian;
-      std::cout << " " << fRound(ipt->y) << " " << fRound(ipt->x) << std::endl;
-      }
-   */
+  
+  /*Ipoint *ipt;*/
+  /*for(unsigned int i = 0; i < ipts.size(); i++)*/
+  /*{*/
+      /*ipt = &ipts.at(i);*/
+      /*std::cout << ipt->scale;*/
+      /*std::cout << " " << ipt->orientation << " " << ipt->laplacian;*/
+      /*std::cout << " " << fRound(ipt->y) << " " << fRound(ipt->x) << std::endl;*/
+  /*}*/
+   
 
   // Deallocate the integral image
 
