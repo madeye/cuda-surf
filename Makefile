@@ -10,7 +10,7 @@
 # Add source files here
 EXECUTABLE	:= cudasurf
 # CUDA source files (compiled with cudacc)
-CUFILES		:= main.cu
+CUFILES		:= main.cu lfsr.cu
 # CUDA dependency files
 CU_DEPS		:= \
 	integral_kernel.cu \

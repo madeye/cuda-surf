@@ -7,6 +7,7 @@
 
 // includes, common headers
 #include "common.h"
+#include "lfsr.h"
 #include <omp.h>
 
 // includes, kernels
@@ -318,7 +319,7 @@ int mainCUDAImage(int args, char** argv)
   float *orts;
   orts = (float *)malloc(IPTSNUM * sizeof(float));
 
-  if (args < 2) return -1;
+  if (args < 3) return -1;
 
   IplImage *img = cvLoadImage(argv[1]);
 
@@ -332,17 +333,26 @@ int mainCUDAImage(int args, char** argv)
   gettimeofday(&bd_tick_e, 0);
   GET_TIME(bd_tick_x, bd_tick_e, bd_tick_d);
 
-  for (int i = 0; i < ipts.size(); i++) {
-    cout << ipts[i].z << " " << orts[i] << " "<< fRound(ipts[i].w) << " " <<
-         fRound(ipts[i].y) << " " << fRound(ipts[i].x) << endl;
-    for (int j = 0; j < 16; j++) {
-        float4 d = des[i*16 + j];
-        cout << d.x << " " << d.y << " " << d.z << " " << d.w << endl;
-    }
-  }
-  std::cout<< "OpenSURF took: " << bd_tick_d.tv_sec*1000 + bd_tick_d.tv_usec/1000 << " ms" << std::endl;
-  cout << "Ipoint Num: " << ipts.size() << endl;
+  vector<struct feature>& features = lfsr(img, ipts);
 
+  ofstream file;
+  file.open(argv[2]);
+  file << argv[1] << endl;
+  file << 64 << " " << features.size() << endl;
+  for (int i = 0; i < features.size(); i++) {
+    file << features[i].x << " " << features[i].y 
+        << " " << features[i].scl << " " << orts[i] << endl;
+    for (int j = 0; j < 16; j++) {
+        float4 d = des[features[i].index*16 + j];
+        file << fRound(d.x * 10000) << " "
+             << fRound(d.y * 10000) << " "
+             << fRound(d.z * 10000) << " "
+             << fRound(d.w * 10000);
+    }
+    file << endl;
+  }
+  file.close();
+  std::cout<< "took: " << bd_tick_d.tv_sec*1000 + bd_tick_d.tv_usec/1000 << " ms" << std::endl;
   
   /*Ipoint *ipt;*/
   /*for(unsigned int i = 0; i < ipts.size(); i++)*/
@@ -357,10 +367,10 @@ int mainCUDAImage(int args, char** argv)
   // Deallocate the integral image
 
   // Draw the detected points
-  //drawIpoints(img, ipts, ipts.size(), orts);
+  /*drawIpoints(img, ipts, ipts.size(), orts);*/
 
   // Display the result
-  //showImage(img);
+  /*showImage(img);*/
 
   cvReleaseImage(&img);
   cvReleaseImage(&gray_img);
