@@ -39,7 +39,7 @@
 #define octaves     4
 #define intervals   4
 #define init_sample 2
-#define thres       0.0001f
+#define thres       0.00001f
 
 #define GET_TIME(start, end, duration)                                     \
    duration.tv_sec = (end.tv_sec - start.tv_sec);                         \

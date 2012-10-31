@@ -10,22 +10,18 @@
 # Add source files here
 EXECUTABLE	:= cudasurf
 # CUDA source files (compiled with cudacc)
-CUFILES		:= main.cu lfsr.cu
-# CUDA dependency files
-CU_DEPS		:= \
-	integral_kernel.cu \
-	det_kernel.cu \
-	surf_kernel.cu \
-	match_kernel.cu
+CUFILES		:= \
+	main.cu
+
+CCFILES     := \
+	lfsr.cpp
 
 #SMVERSIONFLAGS += -arch sm_11
 
-CXXFLAGS  += -fopenmp
-CFLAGS  += -fopenmp
 COMMONFLAGS  += `pkg-config --cflags opencv`
 
-NVCCFLAGS += -ptx
-LINKFLAGS += `pkg-config --libs opencv`
+#NVCCFLAGS += -ptx
+LINKFLAGS += `pkg-config --libs opencv` -lzmq
 
 ################################################################################
 include common.mk

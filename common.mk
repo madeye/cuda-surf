@@ -135,7 +135,7 @@ else
 endif
 
 # Compiler-specific flags (by default, we always use sm_10, sm_20, and sm_30), unless we use the SMVERSION template
-#GENCODE_SM10 := -gencode=arch=compute_10,code=\"sm_10,compute_10\"
+GENCODE_SM10 := -gencode=arch=compute_10,code=\"sm_10,compute_10\"
 GENCODE_SM20 := -gencode=arch=compute_20,code=\"sm_20,compute_20\"
 GENCODE_SM30 := -gencode=arch=compute_30,code=\"sm_30,compute_30\"
 
@@ -168,12 +168,12 @@ ifeq ($(dbg),1)
 	BINSUBDIR   := debug
 	LIBSUFFIX   := D
 else
-	COMMONFLAGS += -O0 
+	COMMONFLAGS +=  
 	BINSUBDIR   := release
 	LIBSUFFIX   := 
-	NVCCFLAGS   += --compiler-options -fno-strict-aliasing
-	CXXFLAGS    += -fno-strict-aliasing
-	CFLAGS      += -fno-strict-aliasing
+	NVCCFLAGS   += -O0 --compiler-options -fno-strict-aliasing
+	CXXFLAGS    += -O3 -fno-strict-aliasing
+	CFLAGS      += -O3 -fno-strict-aliasing
 endif
 
 # architecture flag for cubin build
@@ -436,7 +436,7 @@ define SMVERSION_template
 OBJS += $(patsubst %.cu,$(OBJDIR)/%.cu_$(1).o,$(notdir $(CUFILES_sm_$(1))))
 $(OBJDIR)/%.cu_$(1).o : $(SRCDIR)%.cu $(CU_DEPS)
 #	$(VERBOSE)$(NVCC) -o $$@ -c $$< $(NVCCFLAGS)  $(1)
-	$(VERBOSE)$(NVCC) -gencode=arch=compute_$(1),code=\"sm_$(1),compute_$(1)\" $(GENCODE_SM20) $(GENCODE_SM30) -o $$@ -c $$< $(NVCCFLAGS)
+	$(VERBOSE)$(NVCC) -gencode=arch=compute_$(1),code=\"sm_$(1),compute_$(1)\" $(GENCODE_SM10) $(GENCODE_SM20) $(GENCODE_SM30) -o $$@ -c $$< $(NVCCFLAGS)
 endef
 
 # This line invokes the above template for each arch version stored in

@@ -38,7 +38,7 @@ static inline float gaussian_1d(int x, float sig)
     return (1.0f / (sqrtf(2.0f*PI) * sig)) * exp(-((float) (x*x)) / (2.0f*sig*sig));
 }
 
-#define GAUSSIAN_2D
+//#define GAUSSIAN_2D
 
 static inline int border(vector<feature> &features, int w, int min_block_width, bool axis_x) {
 
@@ -539,16 +539,18 @@ static void estimate(int w, int h, vector<struct feature> &features,
 #ifdef GAUSSIAN_2D
                     float fx = dis[k*w + j];
                     float fy = dis[k*w + j];
-#endif
-                    //float f = 1.0f;
-
-#ifdef GAUSSIAN_1D
-                    float fx = dis_x[j];
-                    float fy = dis_y[k];
-#endif
-
                     total_x += j * fx;
                     total_y += k * fy;
+#elif GAUSSIAN_1D
+                    float fx = dis_x[j];
+                    float fy = dis_y[k];
+                    total_x += j * fx;
+                    total_y += k * fy;
+#else
+                    total_x += j;
+                    total_y += k;
+#endif
+
                     count++;
                 }
             }
