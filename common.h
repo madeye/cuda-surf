@@ -32,14 +32,14 @@
 #define TNUM     11
 #define TNUMD    16
 #define TNUMM    8
-#define IPTSNUM  5000
+#define IPTSNUM  3000
 
 #define DIM 4
 
-#define octaves     4
-#define intervals   4
-#define init_sample 2
-#define thres       0.00001f
+#define OCTAVES     4
+#define INTERVALS   4
+#define INIT_SAMPLE 2
+#define THRES       0.0004f
 
 #define GET_TIME(start, end, duration)                                     \
    duration.tv_sec = (end.tv_sec - start.tv_sec);                         \
@@ -86,23 +86,11 @@ float H3[5][3][3] =
     {5.1887712e-04,-7.8853731e-05, 1.0000000e+00}}
 };
 
-// Texture m_det
-texture<float, 1, cudaReadModeElementType> TexDet;
-
-// Texture tex_des1
-texture<float4, 1, cudaReadModeElementType> TexDes1;
-
-// Texture tex_des2
-texture<float4, 1, cudaReadModeElementType> TexDes2;
-
-// Texture integral image
-texture<float, 1, cudaReadModeElementType> TexInt;
-
 //-------------------------------------------------------
 //! Integral Box for CUDA
 //! Bounding test not need here, because texture will return 0 when
 //! out of index
-__device__ inline float BoxIntegral(int row, int col, int rows, int cols)
+__device__ inline float BoxIntegral(int row, int col, int rows, int cols, float* d_int)
 {
 
   // The subtraction by one for row/col is because row/col is inclusive.
@@ -112,12 +100,13 @@ __device__ inline float BoxIntegral(int row, int col, int rows, int cols)
   int c2 = min(col + cols,   i_width)  - 1;
 
   float A(0.0f), B(0.0f), C(0.0f), D(0.0f);
-  A = tex1Dfetch(TexInt, r1 * i_width + c1);
-  B = tex1Dfetch(TexInt, r1 * i_width + c2);
-  C = tex1Dfetch(TexInt, r2 * i_width + c1);
-  D = tex1Dfetch(TexInt, r2 * i_width + c2);
+  A = d_int[r1 * i_width + c1];
+  B = d_int[r1 * i_width + c2];
+  C = d_int[r2 * i_width + c1];
+  D = d_int[r2 * i_width + c2];
 
-  return fmax(0.f, A - B - C + D);
+  return max(0.f, A - B - C + D);
+  //return fmax(0.f, A - B - C + D);
 }
 
 inline int fRound(float flt)

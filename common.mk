@@ -168,12 +168,12 @@ ifeq ($(dbg),1)
 	BINSUBDIR   := debug
 	LIBSUFFIX   := D
 else
-	COMMONFLAGS +=  
+	COMMONFLAGS += -g 
 	BINSUBDIR   := release
 	LIBSUFFIX   := 
-	NVCCFLAGS   += -O0 --compiler-options -fno-strict-aliasing
-	CXXFLAGS    += -O3 -fno-strict-aliasing
-	CFLAGS      += -O3 -fno-strict-aliasing
+	NVCCFLAGS   += --compiler-options
+	CXXFLAGS    += -O2
+	CFLAGS      += -O2
 endif
 
 # architecture flag for cubin build

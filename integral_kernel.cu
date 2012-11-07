@@ -5,9 +5,6 @@
  * Revision: 25
  */
 
-// Texture source image
-texture<float, 1, cudaReadModeElementType> TexSrc;
-
 //-------------------------------------------------------
 //! Convert image to single channel 32F
 IplImage *getGray(const IplImage *img)
@@ -32,8 +29,8 @@ IplImage *getGray(const IplImage *img)
 }
 
 
-__global__ void integralRowKernel(float *i_data,
-                                  int width, int height)
+__global__ void integralRowKernel(float* d_data, float *i_data,
+                                  int width, int height, int step)
 {
   int r = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -44,7 +41,7 @@ __global__ void integralRowKernel(float *i_data,
 
   for (int c = 0; c < width; c++)
     {
-      rs += tex1Dfetch(TexSrc, r * width + c);
+      rs += d_data[r * step + c];
       i_data[r * width + c] = rs;
     }
 }
@@ -69,25 +66,60 @@ __global__ void integralColumnKernel(float *i_data,
 //-------------------------------------------------------
 //! Computes the integral image of image img.  Assumes source image to be a
 //! 32-bit floating point.  Returns IplImage of 32-bit float form.
-void Integral(IplImage *img, float *d_idata, float *d_data)
+void Integral(IplImage *img, float *d_int, float *tmp)
 {
 
   // set up variables for data access
   int height = img->height;
   int width = img->width;
+  int step = img->widthStep/sizeof(float);
   float *data   = (float *) img->imageData;
 
-  CUDA_SAFE_CALL(cudaMemcpy(d_data, data, width * height * sizeof(float),
+  CUDA_SAFE_CALL(cudaMemcpy(tmp, data, step * height * sizeof(float),
                             cudaMemcpyHostToDevice));
 
-  CUDA_SAFE_CALL(cudaBindTexture(0, TexSrc,
-                                 d_data, width * height * sizeof(float)));
-
-  integralRowKernel<<< (height + 15) / 16, 16 >>> (d_idata, width, height);
-  integralColumnKernel<<< (width + 7) / 8, 8 >>> (d_idata, width, height);
+  integralRowKernel<<< (height + 15) / 16, 16 >>> (tmp, d_int, width, height,
+          step);
+  integralColumnKernel<<< (width + 7) / 8, 8 >>> (d_int, width, height);
 
   // release the gray image
-  CUDA_SAFE_CALL(cudaUnbindTexture(TexSrc));
-  //CUDA_SAFE_CALL(cudaFree(d_data));
+  CUDA_SAFE_CALL(cudaFree(tmp));
+}
+
+void Integral_CPU(IplImage *img, float *d_int, float *tmp)
+{
+
+  // set up variables for data access
+  int height = img->height;
+  int width = img->width;
+  int step = img->widthStep/sizeof(float);
+  float *data   = (float *) img->imageData;  
+  float *i_data = (float *) malloc (width*height*sizeof(float));  
+
+  // first row only
+  float rs = 0.0f;
+  for(int j=0; j<width; j++) 
+  {
+    rs += data[j]; 
+    i_data[j] = rs;
+  }
+
+  // remaining cells are sum above and to the left
+  for(int i=1; i<height; ++i) 
+  {
+    rs = 0.0f;
+    for(int j=0; j<width; ++j) 
+    {
+      rs += data[i*step+j]; 
+      i_data[i*width+j] = rs + i_data[(i-1)*width+j];
+    }
+  }
+
+  CUDA_SAFE_CALL(cudaMemcpy(d_int, i_data, width * height * sizeof(float),
+                            cudaMemcpyHostToDevice));
+
+  free(i_data);
+  CUDA_SAFE_CALL(cudaFree(tmp));
+
 }
 

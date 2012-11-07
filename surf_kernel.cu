@@ -57,18 +57,18 @@ __device__ float gaussian(float x, float y, float sig)
 
 //-------------------------------------------------------
 //! Calculate Haar wavelet responses in x direction
-__device__ float haarX(int row, int column, int s)
+__device__ float haarX(int row, int column, int s, float* d_int)
 {
-  return BoxIntegral(row-s/2, column, s, s/2)
-         - BoxIntegral(row-s/2, column-s/2, s, s/2);
+  return BoxIntegral(row-s/2, column, s, s/2, d_int)
+         - BoxIntegral(row-s/2, column-s/2, s, s/2, d_int);
 }
 
 //-------------------------------------------------------
 //! Calculate Haar wavelet responses in y direction
-__device__ float haarY(int row, int column, int s)
+__device__ float haarY(int row, int column, int s, float* d_int)
 {
-  return BoxIntegral(row, column-s/2, s/2, s)
-         - BoxIntegral(row-s/2, column-s/2, s/2, s);
+  return BoxIntegral(row, column-s/2, s/2, s, d_int)
+         - BoxIntegral(row-s/2, column-s/2, s/2, s, d_int);
 }
 
 //-------------------------------------------------------
@@ -92,7 +92,7 @@ __device__ inline float getAngle(float X, float Y)
 
 //-------------------------------------------------------
 //! Assign the supplied Ipoint an orientation
-__global__ void getOrientationStep1(float4 *s_ipts, float3 *res)
+__global__ void getOrientationStep1(float4 *s_ipts, float3 *res, float* d_int)
 {
   // theadIdx 0 - 10 => BlockDim = (11,11)
   uint i = threadIdx.x - 5;
@@ -115,8 +115,8 @@ __global__ void getOrientationStep1(float4 *s_ipts, float3 *res)
   if (i*i + j*j < 36)
     {
       gauss =gauss25[id[i+6]][id[j+6]];
-      rs.x = gauss * haarX(r+j*s, c+i*s, 4*s);
-      rs.y = gauss * haarY(r+j*s, c+i*s, 4*s);
+      rs.x = gauss * haarX(r+j*s, c+i*s, 4*s, d_int);
+      rs.y = gauss * haarY(r+j*s, c+i*s, 4*s, d_int);
       rs.z = getAngle(rs.x, rs.y);
     }
 
@@ -249,7 +249,8 @@ __global__ void getOrientationStep2(float *d_ort, float3 *d_res)
 //-------------------------------------------------------
 //! Get the modified descriptor. See Agrawal ECCV 08
 //! Modified descriptor contributed by Pablo Fernandez
-__global__ void getDescriptor(float4 *s_ipts, float4 *d_des, float *d_ort)
+__global__ void getDescriptor(float4 *s_ipts, float4 *d_des, float *d_ort,
+        float* d_int)
 {
 
   __shared__ float des[64];
@@ -313,8 +314,10 @@ __global__ void getDescriptor(float4 *s_ipts, float4 *d_des, float *d_ort)
       int sample_y = __float2int_rn(y + ( l*scaleco + k*scalesi));
 
       //Get the gaussian weighted x and y responses
-      rx[k + 12][l + 12] = haarX(sample_y, sample_x, 2 * __float2int_rn(scale));
-      ry[k + 12][l + 12] = haarY(sample_y, sample_x, 2 * __float2int_rn(scale));
+      rx[k + 12][l + 12] = haarX(sample_y, sample_x, 2 * __float2int_rn(scale),
+              d_int);
+      ry[k + 12][l + 12] = haarY(sample_y, sample_x, 2 * __float2int_rn(scale),
+              d_int);
     }
 
   if (tid < 8)
@@ -326,8 +329,10 @@ __global__ void getDescriptor(float4 *s_ipts, float4 *d_des, float *d_ort)
         int sample_y = __float2int_rn(y + ( l*scaleco + k*scalesi));
 
         //Get the gaussian weighted x and y responses
-        rx[k + 12][l + 12] = haarX(sample_y, sample_x, 2 * __float2int_rn(scale));
-        ry[k + 12][l + 12] = haarY(sample_y, sample_x, 2 * __float2int_rn(scale));
+        rx[k + 12][l + 12] = haarX(sample_y, sample_x, 2 *
+                __float2int_rn(scale), d_int);
+        ry[k + 12][l + 12] = haarY(sample_y, sample_x, 2 *
+                __float2int_rn(scale), d_int);
       }
 
   __syncthreads();

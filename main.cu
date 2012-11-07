@@ -15,7 +15,6 @@
 #include <integral_kernel.cu>
 #include <det_kernel.cu>
 #include <surf_kernel.cu>
-#include <match_kernel.cu>
 
 using namespace std;
 
@@ -39,10 +38,10 @@ int main(int args, char** argv)
 //! DetDes prepare for detdes_kernel
 float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
 {
-    float *d_det;
-    float *Src;
-    float *Tmp;
+    float *tmp;
     float4 *d_ipts;
+    float *d_det;
+    float *d_int;
 
     float time;
 
@@ -54,23 +53,25 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
     int height = img->height;
     int width = img->width;
 
+    std::cout << width << " " << height << std::endl;
+
     cudaEventRecord(start, 0);
 
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(i_width, &width, sizeof(int)));
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(i_height, &height, sizeof(int)));
 
-    m_det_size = octaves*intervals*width*height;
+    m_det_size = OCTAVES*INTERVALS*width*height;
 
     CUDA_SAFE_CALL(cudaMalloc((void **) &d_det, m_det_size * sizeof(float)));
-    CUDA_SAFE_CALL(cudaMalloc((void **) &Src, width * height * sizeof(float)));
-    CUDA_SAFE_CALL(cudaMalloc((void **) &Tmp, width * height * sizeof(float)));
+    CUDA_SAFE_CALL(cudaMalloc((void **) &d_int, width * height * sizeof(float)));
+    CUDA_SAFE_CALL(cudaMalloc((void **) &tmp, width * height * sizeof(float)));
     CUDA_SAFE_CALL(cudaMalloc((void **) &d_ipts, IPTSNUM * sizeof(float4)));
     zeroDetKernel<<< (m_det_size + 255) / 256, 256 >>>(d_det, m_det_size);
 
     //-------------------------------------------------------
     //! Integral on CUDA
 
-    Integral(img, Src, Tmp);
+    Integral(img, d_int, tmp);
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -80,15 +81,9 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
     //-------------------------------------------------------
     //! BuildDet on CUDA
 
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-
-
-    CUDA_SAFE_CALL(cudaBindTexture(0, TexInt,
-                Src, width * height * sizeof(float)));
-
     cudaEventRecord(start, 0);
 
-    buildDet( d_det, width, height );
+    buildDet( d_int, d_det, width, height );
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -103,13 +98,9 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
 
     cudaEventRecord(start, 0);
 
-    // Bind d_det to texture
-    CUDA_SAFE_CALL(cudaBindTexture(0, TexDet,
-                d_det, m_det_size * sizeof(float)));
-
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(counter, &h_counter, sizeof(int)));
 
-    getIpoints( d_ipts, width, height );
+    getIpoints( d_det, d_ipts, width, height );
     cutilCheckMsg("Kernel execution failed");
 
     CUDA_SAFE_CALL(cudaThreadSynchronize());
@@ -128,14 +119,10 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
         //-------------------------------------------------------
         //! Free allocated memory
 
-        // Unbind texture
-        CUDA_SAFE_CALL(cudaUnbindTexture(TexDet));
-        CUDA_SAFE_CALL(cudaUnbindTexture(TexInt));
-
         // Device free
         CUDA_SAFE_CALL(cudaFree(d_det));
         CUDA_SAFE_CALL(cudaFree(d_ipts));
-        CUDA_SAFE_CALL(cudaFree(Src));
+        CUDA_SAFE_CALL(cudaFree(d_int));
 
         // Host free
         return NULL;
@@ -167,14 +154,14 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
     //! Run the Des kernel
 
     dim3 threads1(11, 11);
-    getOrientationStep1<<< size, threads1 >>>( d_ipts, d_res );
+    getOrientationStep1<<< size, threads1 >>>( d_ipts, d_res, d_int );
     cutilCheckMsg("Kernel execution failed");
 
     getOrientationStep2<<< size, 42 >>>( d_ort, d_res );
     cutilCheckMsg("Kernel execution failed");
 
     dim3 threads2(4, 4);
-    getDescriptor<<< size, threads2 >>>( d_ipts, d_des, d_ort );
+    getDescriptor<<< size, threads2 >>>( d_ipts, d_des, d_ort, d_int );
     cutilCheckMsg("Kernel execution failed");
 
     CUDA_SAFE_CALL(cudaThreadSynchronize());
@@ -198,17 +185,11 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
     }
     //  cout << ipts.size() << endl;
 
-#if PROCEDURE != 2
     for (int i = 0; i < size; i++)
         orts[i] = h_ort[i];
-#endif
 
     //-------------------------------------------------------
     //! Free allocated memory
-
-    // Unbind texture
-    CUDA_SAFE_CALL(cudaUnbindTexture(TexDet));
-    CUDA_SAFE_CALL(cudaUnbindTexture(TexInt));
 
     // Device free
     CUDA_SAFE_CALL(cudaFree(d_res));
@@ -216,7 +197,7 @@ float4 *DetDes(IplImage *img, vector<float4> &ipts, float *orts)
     CUDA_SAFE_CALL(cudaFree(d_ort));
     CUDA_SAFE_CALL(cudaFree(d_det));
     CUDA_SAFE_CALL(cudaFree(d_ipts));
-    CUDA_SAFE_CALL(cudaFree(Src));
+    CUDA_SAFE_CALL(cudaFree(d_int));
 
     // Host free
     free(h_ipts);
@@ -233,19 +214,22 @@ int mainCUDAImage(int args, char** argv)
     if (args < 2) return -1;
 
     //  Prepare our context and socket
-    char url[128];
-    sprintf(url, "tcp://127.0.0.1:%s", argv[1]);
-    zmq::context_t context (1);
-    zmq::socket_t socket (context, ZMQ_REP);
-    socket.bind (url);
+    /*char url[128];*/
+    /*sprintf(url, "tcp://127.0.0.1:%s", argv[1]);*/
+    /*zmq::context_t context (1);*/
+    /*zmq::socket_t socket (context, ZMQ_REP);*/
+    /*socket.bind (url);*/
 
-    while (true) {
-        zmq::message_t request;
-        socket.recv (&request);
-        string request_string((char*) request.data());
-        char image_path[PATH_MAX];
-        char result_path[PATH_MAX];
-        sscanf(request_string.c_str(), "%s\n%s", image_path, result_path);
+    /*while (true)*/
+    {
+        /*zmq::message_t request;*/
+        /*socket.recv (&request);*/
+        /*string request_string((char*) request.data());*/
+        /*char image_path[PATH_MAX];*/
+        /*char result_path[PATH_MAX];*/
+        /*sscanf(request_string.c_str(), "%s\n%s", image_path, result_path);*/
+        char* image_path = argv[1];
+        char* result_path = argv[2];
 
         vector<float4> ipts;
         struct timeval  bd_tick_x, bd_tick_e, bd_tick_d;
@@ -305,10 +289,11 @@ int mainCUDAImage(int args, char** argv)
         cvReleaseImage(&gray_img);
         free(orts);
         free(des);
+        delete (&features);
 
-        zmq::message_t reply (3);
-        memcpy ((void *) reply.data (), "OK", 3);
-        socket.send (reply);
+        /*zmq::message_t reply (3);*/
+        /*memcpy ((void *) reply.data (), "OK", 3);*/
+        /*socket.send (reply);*/
     }
 
     return 0;

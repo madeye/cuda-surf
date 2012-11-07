@@ -94,7 +94,7 @@ __global__ void getMatches(float4 *des1, int size1, int size2, int2 *matches)
       /*v1.y = des[tid + (n*4 + 1)*TNUMM];*/
       /*v1.z = des[tid + (n*4 + 2)*TNUMM];*/
       /*v1.w = des[tid + (n*4 + 3)*TNUMM];*/
-      float4 v2 = tex1Dfetch(TexDes2, j*16 + n);
+      float4 v2 = TexDes2[j*16 + n];
       sum += (v1.x - v2.x) * (v1.x - v2.x);
       sum += (v1.y - v2.y) * (v1.y - v2.y);
       sum += (v1.z - v2.z) * (v1.z - v2.z);
